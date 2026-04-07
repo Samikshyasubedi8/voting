@@ -47,3 +47,18 @@ class Voter(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.voter_id
+
+class Candidate(models.Model):
+    name = models.CharField(max_length=150)
+    party = models.CharField(max_length=100)
+    bio = models.TextField()
+    image = models.ImageField(upload_to='candidates/', null=True, blank=True)
+    position = models.CharField(max_length=100, default='Mayor')  # e.g., Mayor, Representative
+    votes_count = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.party}"
+
+    class Meta:
+        ordering = ['-votes_count']

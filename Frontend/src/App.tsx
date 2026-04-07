@@ -10,6 +10,8 @@ import VoterIdDisplay from './components/VoterIdDisplay';
 import AuthLayout from './components/AuthLayout';
 import Toast from './components/Toast';
 import VotingWelcome from './components/VotingWelcome';
+import Homepage from './components/Homepage';
+import CandidateDetails from './components/CandidateDetails';
 
 /**
  * 1. AXIOS CONFIGURATION
@@ -43,6 +45,8 @@ export default function App() {
     <Router>
       <div className="font-sans antialiased text-gray-900">
         <Routes>
+          <Route path="/" element={<Homepage />} />
+          <Route path="/candidate-details" element={<CandidateDetails />} />
           {/* LOGIN ROUTE */}
           <Route 
             path="/login" 

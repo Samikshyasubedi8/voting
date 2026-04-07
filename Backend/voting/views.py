@@ -6,8 +6,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.generics import ListAPIView
+from .models import Candidate
 
-from .serializer import LoginSerializer, VoterSerializer, ReactSerializer, RegisterSerializer
+from .serializer import LoginSerializer, VoterSerializer, ReactSerializer, RegisterSerializer , CandidateSerializer
 
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
@@ -39,3 +41,15 @@ class CSRFTokenView(APIView):
     @method_decorator(ensure_csrf_cookie)
     def get(self, request):
         return Response({'detail': 'CSRF cookie set'}, status=status.HTTP_200_OK)
+
+
+class HomepageView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        return Response({"message": "Welcome to the Voting System API"}, status=status.HTTP_200_OK)
+
+class CandidateListView(ListAPIView):
+    queryset = Candidate.objects.all()
+    serializer_class = CandidateSerializer
+    permission_classes = [AllowAny]
