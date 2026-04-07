@@ -3,5 +3,5 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/voting/', include('voting.urls')),  # ← matches your React fetch URL
+    path('api/', include('voting.urls')),  # ← matches your React fetch 
 ]

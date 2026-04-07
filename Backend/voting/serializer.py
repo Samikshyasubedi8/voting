@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import Voter
+from .models import Candidate, Voter
 
 
 class LoginSerializer(serializers.Serializer):
@@ -80,3 +80,8 @@ class ReactSerializer(serializers.ModelSerializer):
     def get_lastName(self, obj):
         parts = obj.full_name.strip().split()
         return ' '.join(parts[1:]) if len(parts) > 1 else ''
+    
+class CandidateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Candidate
+        fields = ['id', 'name', 'party', 'bio', 'image', 'position', 'votes_count']
