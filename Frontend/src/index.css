@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  --font-family-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-gray-50;
+  }
+}
+
+/* Custom checkbox styles */
+input[type="checkbox"] {
+  @apply rounded border-gray-300 text-indigo-600 focus:ring-indigo-500;
+}
+
+/* Smooth transitions for inputs */
+input, select {
+  @apply transition-all duration-200;
+}
+
+/* Gradient text utility */
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600;
+}
