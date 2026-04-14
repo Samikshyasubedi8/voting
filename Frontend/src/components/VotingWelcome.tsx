@@ -1,21 +1,79 @@
-import  { useEffect, useState } from 'react';
-import { User, MapPin, Vote, History, LogOut, ShieldCheck } from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useEffect, useState } from 'react';
+import { 
+  User, 
+  MapPin, 
+  Vote, 
+  LogOut, 
+  ShieldCheck, 
+  CheckCircle2, 
+  AlertCircle,
+  ChevronRight,
+  Info,
+  Check
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+interface Candidate {
+  id: string;
+  name: string;
+  party: string;
+  role: string;
+  municipality: string;
+  ward: number | null;
+  photo: string;
+}
+
+interface UserData {
+  firstName: string;
+  lastName: string;
+  voterId: string;
+  district: string;
+  municipality: string;
+  ward: number;
+}
 
 export default function VotingWelcome() {
-  const [userData, setUserData] = useState<{
-    firstName: string;
-    lastName: string;
-    email: string;
-    voterId: string;
-  } | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [selections, setSelections] = useState<{
+    mayor: string | null;
+    deputyMayor: string | null;
+    wardChairperson: string | null;
+    wardMembers: string[];
+  }>({
+    mayor: null,
+    deputyMayor: null,
+    wardChairperson: null,
+    wardMembers: []
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const savedData = localStorage.getItem('user_data');
     if (savedData) {
-      setUserData(JSON.parse(savedData));
+      const parsedData = JSON.parse(savedData);
+      setUserData(parsedData);
+      fetchCandidates(parsedData.municipality, parsedData.ward);
+    }
+    
+    const votedStatus = localStorage.getItem('has_voted');
+    if (votedStatus === 'true') {
+      setHasVoted(true);
     }
   }, []);
+
+  const fetchCandidates = async (municipality: string, ward: number) => {
+    try {
+      const response = await fetch(`/api/voting/candidates?municipality=${encodeURIComponent(municipality)}&ward=${ward}`);
+      const data = await response.json();
+      setCandidates(data);
+    } catch (err) {
+      console.error("Failed to fetch candidates:", err);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
@@ -23,152 +81,294 @@ export default function VotingWelcome() {
     window.location.href = '/login';
   };
 
-  // const fullName = userData ? `${userData.firstName} ${userData.lastName}` : 'Voter';
-  // const voterId = userData ? userData.voterId : 'Generating...';
-  const citizenship = userData ? (userData as any).citizenshipNumber : 'XX-XX-XX-XXXXX';
+  const toggleWardMember = (candidateId: string) => {
+    if (hasVoted) return;
+    setSelections(prev => {
+      const isSelected = prev.wardMembers.includes(candidateId);
+      if (isSelected) {
+        return { ...prev, wardMembers: prev.wardMembers.filter(id => id !== candidateId) };
+      } else {
+        if (prev.wardMembers.length >= 4) {
+          setError("You can select a maximum of 4 Ward Members.");
+          return prev;
+        }
+        setError(null);
+        return { ...prev, wardMembers: [...prev.wardMembers, candidateId] };
+      }
+    });
+  };
+
+  const selectSingle = (role: 'mayor' | 'deputyMayor' | 'wardChairperson', candidateId: string) => {
+    if (hasVoted) return;
+    setSelections(prev => ({ ...prev, [role]: candidateId }));
+    setError(null);
+  };
+
+  const handleSubmit = () => {
+    if (!selections.mayor || !selections.deputyMayor || !selections.wardChairperson) {
+      setError("Please select a candidate for Mayor, Deputy Mayor, and Ward Chairperson.");
+      return;
+    }
+    if (selections.wardMembers.length === 0) {
+      setError("Please select at least one Ward Member.");
+      return;
+    }
+    setShowConfirm(true);
+  };
+
+  const confirmVote = async () => {
+    setIsSubmitting(true);
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    setIsSubmitting(false);
+    setShowConfirm(false);
+    setHasVoted(true);
+    localStorage.setItem('has_voted', 'true');
+  };
+
+  const getPartyColor = (party: string) => {
+    switch (party.toUpperCase()) {
+      case 'RSP': return 'bg-blue-600';
+      case 'UML': return 'bg-sun-500 bg-orange-500';
+      case 'CONGRESS': return 'bg-green-600';
+      default: return 'bg-slate-600';
+    }
+  };
+
+  if (!userData) return null;
+
+  const roles = [
+    { key: 'mayor', title: 'Mayor', description: 'Municipality Level - Select 1' },
+    { key: 'deputyMayor', title: 'Deputy Mayor', description: 'Municipality Level - Select 1' },
+    { key: 'wardChairperson', title: 'Ward Chairperson', description: 'Ward Level - Select 1' },
+    { key: 'wardMembers', title: 'Ward Members', description: 'Ward Level - Select up to 4' }
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Top Navigation */}
-      <nav className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-50">
+    <div className="min-h-screen bg-slate-50 pb-20">
+      {/* Header */}
+      <nav className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl border border-slate-200 transition-all font-bold text-sm shadow-sm"
-            >
-              <LogOut className="w-4 h-4" />
-              Logout
-            </button>
-            <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-              <span className="text-slate-500 text-xs font-medium uppercase tracking-wider">Authenticated Voter</span>
-              <h1 className="text-lg font-bold text-slate-900 leading-none">
-                Welcome, <span className="text-indigo-600">{userData?.firstName} {userData?.lastName}</span>
-              </h1>
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+              <Vote className="text-white w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">NVOTE</h1>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Voter Portal</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-200">
-              <Vote className="text-white w-5 h-5" />
-            </div>
-            <span className="font-bold text-xl text-slate-900 tracking-tight hidden md:block">VoterPortal</span>
-          </div>
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all font-bold text-sm"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </button>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto p-6 sm:p-8">
-        <header className="mb-12">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-4 mb-4"
-          >
-            <div className="p-3 bg-indigo-100 rounded-2xl">
-              <ShieldCheck className="w-8 h-8 text-indigo-600" />
+      <main className="max-w-5xl mx-auto px-4 pt-8">
+        {/* User Info Bar */}
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-indigo-900 text-white rounded-3xl p-6 mb-8 shadow-xl shadow-indigo-200 flex flex-wrap items-center justify-between gap-6"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20">
+              <User className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Dashboard Overview</h2>
-              <p className="text-slate-500">Manage your voting profile and participate in active elections.</p>
+              <h2 className="text-xl font-bold">{userData.firstName} {userData.lastName}</h2>
+              <p className="text-indigo-300 text-xs font-medium">Voter ID: {userData.voterId}</p>
             </div>
-          </motion.div>
-        </header>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Actions */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Active Election Card */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm relative overflow-hidden group"
-            >
-              <div className="relative z-10">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-wider mb-4">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                  Live Election
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">General Election 2026</h2>
-                <p className="text-slate-600 mb-8 max-w-md">Cast your vote for the upcoming local representatives in your ward.</p>
-                <button className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-3">
-                  <Vote className="w-5 h-5" />
-                  Cast Your Vote Now
-                </button>
+          </div>
+          
+          <div className="flex flex-wrap gap-4 md:gap-8">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-indigo-400" />
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold">Location</p>
+                <p className="text-sm font-semibold">{userData.district}, {userData.municipality}</p>
               </div>
-              <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-indigo-50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity"></div>
-              <Vote className="absolute -right-12 -bottom-12 w-64 h-64 text-indigo-600 opacity-[0.03]" />
-            </motion.div>
-
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-                  <History className="text-blue-600 w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Previous Votes</p>
-                  <p className="text-xl font-bold text-slate-900">4 Elections</p>
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
-                  <ShieldCheck className="text-purple-600 w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Security Status</p>
-                  <p className="text-xl font-bold text-slate-900">Verified</p>
-                </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-indigo-400" />
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold">Ward</p>
+                <p className="text-sm font-semibold">No. {userData.ward}</p>
               </div>
             </div>
           </div>
+        </motion.div>
 
-          {/* Sidebar Info */}
-          <div className="space-y-8">
-            {/* Profile Summary */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-indigo-600" />
-                Voter Profile
-              </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between py-3 border-b border-slate-50">
-                  <span className="text-slate-500 text-sm">District</span>
-                  <span className="text-slate-900 font-medium">Kathmandu</span>
-                </div>
-                <div className="flex justify-between py-3 border-b border-slate-50">
-                  <span className="text-slate-500 text-sm">Municipality</span>
-                  <span className="text-slate-900 font-medium">KMC</span>
-                </div>
-                <div className="flex justify-between py-3 border-b border-slate-50">
-                  <span className="text-slate-500 text-sm">Ward No.</span>
-                  <span className="text-slate-900 font-medium">32</span>
-                </div>
-                <div className="flex justify-between py-3">
-                  <span className="text-slate-500 text-sm">Citizenship</span>
-                  <span className="text-slate-900 font-medium">{citizenship}</span>
-                </div>
+        {/* Status Banner */}
+        {hasVoted ? (
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-emerald-50 border border-emerald-100 rounded-3xl p-8 text-center mb-12"
+          >
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Vote Submitted Successfully!</h3>
+            <p className="text-slate-600">Thank you for participating in the democratic process. Your vote has been recorded securely.</p>
+          </motion.div>
+        ) : (
+          <div className="space-y-12">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-900">Cast Your Vote</h3>
+                <p className="text-slate-500">Step 1 of 1: Candidate Selection</p>
               </div>
-              <button className="w-full mt-6 py-3 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                Edit Profile Details
+              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-xs font-bold uppercase tracking-wider">
+                <Info className="w-4 h-4" />
+                Live Election 2026
+              </div>
+            </div>
+
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl flex items-center gap-3 font-medium"
+              >
+                <AlertCircle className="w-5 h-5" />
+                {error}
+              </motion.div>
+            )}
+
+            {roles.map((role) => (
+              <section key={role.key} className="space-y-6">
+                <div className="flex items-end gap-4">
+                  <h4 className="text-xl font-bold text-slate-900 leading-none">{role.title}</h4>
+                  <p className="text-sm text-slate-400 font-medium leading-none">{role.description}</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {candidates
+                    .filter(c => c.role === role.title)
+                    .map(candidate => {
+                      const isSelected = role.key === 'wardMembers' 
+                        ? selections.wardMembers.includes(candidate.id)
+                        : (selections as any)[role.key] === candidate.id;
+
+                      return (
+                        <motion.div
+                          key={candidate.id}
+                          whileHover={{ y: -4 }}
+                          onClick={() => role.key === 'wardMembers' ? toggleWardMember(candidate.id) : selectSingle(role.key as any, candidate.id)}
+                          className={`relative cursor-pointer group p-4 rounded-3xl border-2 transition-all duration-300 flex items-center gap-4 ${
+                            isSelected 
+                              ? 'bg-indigo-50 border-indigo-600 shadow-lg shadow-indigo-100' 
+                              : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'
+                          }`}
+                        >
+                          <div className="relative">
+                            <img 
+                              src={candidate.photo} 
+                              alt={candidate.name} 
+                              className="w-16 h-16 rounded-2xl object-cover bg-slate-100"
+                              referrerPolicy="no-referrer"
+                            />
+                            {isSelected && (
+                              <div className="absolute -top-2 -right-2 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center border-2 border-white">
+                                <Check className="w-3 h-3 text-white" />
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h5 className="font-bold text-slate-900">{candidate.name}</h5>
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-black text-white uppercase ${getPartyColor(candidate.party)}`}>
+                                {candidate.party}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium">Candidate for {candidate.role}</p>
+                          </div>
+
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                            isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-200 group-hover:border-indigo-300'
+                          }`}>
+                            {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                </div>
+              </section>
+            ))}
+
+            <div className="pt-12 flex justify-center">
+              <button 
+                onClick={handleSubmit}
+                className="px-12 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-lg hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-200 flex items-center gap-3 group"
+              >
+                Submit Your Vote
+                <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
+          </div>
+        )}
+      </main>
 
-            {/* Location Card */}
-            <div className="bg-slate-900 rounded-3xl p-6 text-white relative overflow-hidden">
-              <div className="relative z-10">
-                <MapPin className="w-8 h-8 text-indigo-400 mb-4" />
-                <h3 className="text-lg font-bold mb-2">Your Polling Station</h3>
-                <p className="text-slate-400 text-sm mb-4">Shree Shanti Shiksha Mandir, Ward 32, Kathmandu</p>
-                <button className="text-indigo-400 text-sm font-bold hover:text-indigo-300 transition-colors">
-                  View on Map →
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isSubmitting && setShowConfirm(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white rounded-[2.5rem] p-10 max-w-md w-full shadow-2xl text-center space-y-6"
+            >
+              <div className="w-20 h-20 bg-indigo-100 rounded-3xl flex items-center justify-center mx-auto">
+                <ShieldCheck className="w-10 h-10 text-indigo-600" />
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-slate-900">Confirm Your Vote</h3>
+                <p className="text-slate-500">Are you sure you want to submit your selections? This action cannot be undone.</p>
+              </div>
+
+              <div className="flex flex-col gap-3 pt-4">
+                <button 
+                  disabled={isSubmitting}
+                  onClick={confirmVote}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Yes, Submit Vote"
+                  )}
+                </button>
+                <button 
+                  disabled={isSubmitting}
+                  onClick={() => setShowConfirm(false)}
+                  className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
+                >
+                  Cancel
                 </button>
               </div>
-              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500 opacity-10 blur-3xl -mr-16 -mt-16"></div>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      </main>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

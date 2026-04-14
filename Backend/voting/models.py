@@ -1,5 +1,8 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from datetime import datetime
+from .custom_sha256 import VotingHasher
 
 
 class VoterManager(BaseUserManager):
@@ -26,7 +29,6 @@ class Voter(AbstractBaseUser, PermissionsMixin):
     has_voted     = models.BooleanField(default=False)
     registered_at = models.DateTimeField(auto_now_add=True)
 
-    # ✅ These two lines fix the clash error
     groups = models.ManyToManyField(
         'auth.Group',
         blank=True,
@@ -62,3 +64,25 @@ class Candidate(models.Model):
 
     class Meta:
         ordering = ['-votes_count']
+
+class Vote(models.Model):
+    voter = models.OneToOneField(Voter, on_delete=models.CASCADE)
+    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE)
+    voter_hash = models.CharField(max_length=255)  # Hashed voter ID
+    vote_hash = models.CharField(max_length=255)   # Immutable vote hash
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_verified = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        # Create hashes using custom SHA-256
+        self.voter_hash = VotingHasher.hash_voter_id(self.voter.voter_id)
+        vote_timestamp = self.timestamp.isoformat() if self.timestamp else datetime.now().isoformat()
+        self.vote_hash = VotingHasher.hash_vote(
+            self.voter.voter_id,
+            self.candidate.id,
+            vote_timestamp
+        )
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Vote {self.vote_hash[:10]}... for {self.candidate.name}"

@@ -12,6 +12,7 @@ import Toast from './components/Toast';
 import VotingWelcome from './components/VotingWelcome';
 import Homepage from './components/Homepage';
 import CandidateDetails from './components/CandidateDetails';
+import ResultsPage from './components/ResultsPage';
 
 /**
  * 1. AXIOS CONFIGURATION
@@ -47,6 +48,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Homepage />} />
           <Route path="/candidate-details" element={<CandidateDetails />} />
+          <Route path="/results" element={<ResultsPage />} />
+
           {/* LOGIN ROUTE */}
           <Route 
             path="/login" 
