@@ -119,3 +119,10 @@ class VotingHasher:
     def verify_vote(voter_id: str, candidate_id: int, timestamp: str, vote_hash: str) -> bool:
         vote_data = f"{voter_id}:{candidate_id}:{timestamp}"
         return CustomSHA256.verify(vote_data, vote_hash)
+
+
+
+
+if __name__== '__main__':
+    hsah_algo = CustomSHA256()
+    print(hsah_algo.hash("Hello, World!"))

@@ -33,7 +33,7 @@ export default function Login({ onToast }: LoginProps) {
 
     try {
       const csrfToken = await ensureCsrfToken();
-      const response = await fetch('/api/voting/login/', {
+      const response = await fetch('/api/login/', {
         method: 'POST',
         credentials: 'include',
         headers: {

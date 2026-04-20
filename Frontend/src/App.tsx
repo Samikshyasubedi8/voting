@@ -3,12 +3,14 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AnimatePresence } from 'motion/react';
 import axios from 'axios';
 
+
 // Component Imports
 import Login from './components/Login';
 import Register from './components/Register';
 import VoterIdDisplay from './components/VoterIdDisplay';
 import AuthLayout from './components/AuthLayout';
 import Toast from './components/Toast';
+import VotingPage from './components/VotingPage';
 import VotingWelcome from './components/VotingWelcome';
 import Homepage from './components/Homepage';
 import CandidateDetails from './components/CandidateDetails';
@@ -86,6 +88,7 @@ export default function App() {
 
           {/* WELCOME PAGE (Protected-ish) */}
           <Route path="/welcome" element={<VotingWelcome />} />
+          <Route path="/voting" element={<VotingPage />} />
 
           {/* REDIRECTS */}
           <Route 

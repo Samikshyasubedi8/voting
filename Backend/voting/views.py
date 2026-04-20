@@ -8,6 +8,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.generics import ListAPIView
 from .models import Candidate
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication
 
 from .serializer import LoginSerializer, VoterSerializer, ReactSerializer, RegisterSerializer , CandidateSerializer
 
@@ -17,6 +18,7 @@ def get_tokens_for_user(user):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if not serializer.is_valid():
@@ -26,6 +28,7 @@ class LoginView(APIView):
         return Response({**tokens, 'user': ReactSerializer(user).data}, status=status.HTTP_200_OK)
 
 class RegisterView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -35,9 +38,8 @@ class RegisterView(APIView):
         return Response({'voterId': voter.voter_id, 'message': 'Registration successful!'}, status=status.HTTP_201_CREATED)
 
 class CSRFTokenView(APIView):
-    permission_classes = [AllowAny]
     authentication_classes = []
-
+    permission_classes = [AllowAny]
     @method_decorator(ensure_csrf_cookie)
     def get(self, request):
         return Response({'detail': 'CSRF cookie set'}, status=status.HTTP_200_OK)

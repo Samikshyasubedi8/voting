@@ -39,15 +39,15 @@ const DISTRICT_DATA: Record<string, Record<string, number>> = {
 
 export default function Register({ onToast }: RegisterProps) {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    dateOfBirth: '',
+    first_name: '',
+    last_name: '',
+    date_of_birth: '',
     district: '',
     municipality: '',
     ward: '',
-    citizenshipNumber: '',
+    citizenship_no: '',
     password: '',
-    confirmPassword: '',
+    confirm_password: '',
     terms: false,
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -93,12 +93,12 @@ export default function Register({ onToast }: RegisterProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateCitizenship(formData.citizenshipNumber)) {
+    if (!validateCitizenship(formData.citizenship_no)) {
       onToast('Invalid Citizenship Number format. Expected: XX-XX-XX-XXXXX', 'error');
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
+    if (formData.password !== formData.confirm_password) {
       onToast('Passwords do not match', 'error');
       return;
     }
@@ -112,7 +112,7 @@ export default function Register({ onToast }: RegisterProps) {
 
     try {
       const csrfToken = await ensureCsrfToken();
-      const response = await fetch('/api/voting/register/', {
+      const response = await fetch('/api/register/', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -155,10 +155,10 @@ export default function Register({ onToast }: RegisterProps) {
                 <User className="h-4 w-4 text-gray-400" />
               </div>
               <input
-                name="firstName"
+                name="first_name"
                 type="text"
                 required
-                value={formData.firstName}
+                value={formData.first_name}
                 onChange={handleChange}
                 className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all duration-200"
                 placeholder="John"
@@ -172,10 +172,10 @@ export default function Register({ onToast }: RegisterProps) {
                 <User className="h-4 w-4 text-gray-400" />
               </div>
               <input
-                name="lastName"
+                name="last_name"
                 type="text"
                 required
-                value={formData.lastName}
+                value={formData.last_name}
                 onChange={handleChange}
                 className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all duration-200"
                 placeholder="Doe"
@@ -192,10 +192,10 @@ export default function Register({ onToast }: RegisterProps) {
                 <Calendar className="h-4 w-4 text-gray-400" />
               </div>
               <input
-                name="dateOfBirth"
+                name="date_of_birth"
                 type="date"
                 required
-                value={formData.dateOfBirth}
+                value={formData.date_of_birth}
                 onChange={handleChange}
                 className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all duration-200"
               />
@@ -211,10 +211,10 @@ export default function Register({ onToast }: RegisterProps) {
                 <IdCard className="h-4 w-4 text-gray-400" />
               </div>
               <input
-                name="citizenshipNumber"
+                name="citizenship_no"
                 type="text"
                 required
-                value={formData.citizenshipNumber}
+                value={formData.citizenship_no}
                 onChange={handleChange}
                 className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all duration-200"
                 placeholder="XX-XX-XX-XXXXX"
@@ -334,10 +334,10 @@ export default function Register({ onToast }: RegisterProps) {
               <Lock className="h-4 w-4 text-gray-400" />
             </div>
             <input
-              name="confirmPassword"
+              name="confirm_password"
               type="password"
               required
-              value={formData.confirmPassword}
+              value={formData.confirm_password}
               onChange={handleChange}
               className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all duration-200"
               placeholder="••••••••"

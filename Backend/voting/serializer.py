@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate
 from .models import Candidate, Voter
 
 
+
 class LoginSerializer(serializers.Serializer):
     identifier = serializers.CharField()   # matches your React field name
     password   = serializers.CharField(write_only=True)
@@ -30,31 +31,34 @@ class LoginSerializer(serializers.Serializer):
 
 
 class RegisterSerializer(serializers.Serializer):
-    firstName = serializers.CharField(max_length=150)
-    lastName = serializers.CharField(max_length=150)
-    dateOfBirth = serializers.DateField()
-    citizenshipNumber = serializers.CharField(max_length=50)
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    date_of_birth = serializers.DateField()
+    citizenship_no = serializers.CharField(max_length=50)
+
     district = serializers.CharField(max_length=100)
     municipality = serializers.CharField(max_length=100)
     ward = serializers.CharField(max_length=10)
+
     password = serializers.CharField(write_only=True, min_length=6)
-    confirmPassword = serializers.CharField(write_only=True, min_length=6)
+    confirm_password = serializers.CharField(write_only=True, min_length=6)
 
     def validate(self, data):
-        if data['password'] != data['confirmPassword']:
-            raise serializers.ValidationError('Passwords do not match.')
+        if data["password"] != data["confirm_password"]:
+            raise serializers.ValidationError("Passwords do not match.")
         return data
 
     def create(self, validated_data):
-        full_name = f"{validated_data['firstName']} {validated_data['lastName']}"
-        voter_id = validated_data['citizenshipNumber'].replace('-', '')
-        
+        full_name = f"{validated_data['first_name']} {validated_data['last_name']}"
+        voter_id = validated_data['citizenship_no'].replace('-', '')
+
         voter = Voter.objects.create_user(
             voter_id=voter_id,
-            password=validated_data['password'],
+            password=validated_data["password"],
             email=f"{voter_id}@voter.local",
             full_name=full_name,
         )
+
         return voter
 
 
