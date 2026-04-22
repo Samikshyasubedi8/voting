@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { User, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
+import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'motion/react';
+import api from './api';
 
 interface LoginProps {
   onToast: (message: string, type: 'success' | 'error') => void;
@@ -15,49 +15,25 @@ export default function Login({ onToast }: LoginProps) {
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
 
-  const getCookie = (name: string) => {
-    const cookieValue = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith(`${name}=`));
-    return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
-  };
-
-  const ensureCsrfToken = async () => {
-    await fetch('/api/voting/csrf/', { method: 'GET', credentials: 'include' });
-    return getCookie('csrftoken');
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const csrfToken = await ensureCsrfToken();
-      const response = await fetch('/api/login/', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken,
-        },
-        body: JSON.stringify({ identifier, password }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('auth_token', data.token);
-        if (data.user) {
-          localStorage.setItem('user_data', JSON.stringify(data.user));
+      const response = await api.post('login/', { identifier, password });
+      
+      if (response.data.token) {
+        localStorage.setItem('auth_token', response.data.token);
+        if (response.data.user) {
+          localStorage.setItem('user_data', JSON.stringify(response.data.user));
         }
         onToast('Welcome back! Login successful.', 'success');
         navigate('/welcome');
-      } else {
-        const errorData = await response.json();
-        onToast(errorData.message || 'Invalid credentials. Please try again.', 'error');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      onToast('Login failed. Please check your connection.', 'error');
+      const errorMessage = error.response?.data?.message || 'Invalid credentials. Please try again.';
+      onToast(errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }

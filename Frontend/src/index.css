@@ -24,3 +24,4 @@ input, select {
 .text-gradient {
   @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600;
 }
+

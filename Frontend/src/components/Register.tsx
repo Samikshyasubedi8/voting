@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Lock, Eye, EyeOff, User, IdCard, MapPin, ChevronDown, ShieldCheck, Calendar } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
+import api from './api'; // Import your api instance
 
 interface RegisterProps {
   onToast: (message: string, type: 'success' | 'error') => void;
@@ -51,20 +52,9 @@ export default function Register({ onToast }: RegisterProps) {
     terms: false,
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-
-  const getCookie = (name: string) => {
-    const cookieValue = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith(`${name}=`));
-    return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
-  };
-
-  const ensureCsrfToken = async () => {
-    await fetch('/api/voting/csrf/', { method: 'GET', credentials: 'include' });
-    return getCookie('csrftoken');
-  };
 
   const validateCitizenship = (num: string) => {
     const pattern = /^\d{2}-\d{2}-\d{2}-\d{5}$/;
@@ -103,6 +93,11 @@ export default function Register({ onToast }: RegisterProps) {
       return;
     }
 
+    if (formData.password.length < 6) {
+      onToast('Password must be at least 6 characters long', 'error');
+      return;
+    }
+
     if (!formData.terms) {
       onToast('You must agree to the terms and conditions', 'error');
       return;
@@ -111,26 +106,49 @@ export default function Register({ onToast }: RegisterProps) {
     setIsLoading(true);
 
     try {
-      const csrfToken = await ensureCsrfToken();
-      const response = await fetch('/api/register/', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken,
-        },
-        body: JSON.stringify(formData),
+      // Send data directly to Django - NO CSRF token needed for JWT
+      const response = await api.post('register/', {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        date_of_birth: formData.date_of_birth,
+        citizenship_no: formData.citizenship_no,
+        district: formData.district,
+        municipality: formData.municipality,
+        ward: formData.ward,
+        password: formData.password,
+        confirm_password: formData.confirm_password
       });
 
-      const data = await response.json();
-      if (response.ok) {
-        onToast(`Registration successful!`, 'success');
-        navigate('/voter-id', { state: { voterId: data.voterId } });
+          // Get the generated permanent Voter ID
+      const generatedVoterId = response.data.voterId;
+
+      // Show success message with Voter ID
+    onToast(`✅ Registration successful! Your Voter ID is: ${generatedVoterId}`, 'success');
+    
+    // Navigate to Voter ID display page
+    navigate('/voter-id', { 
+      state: { 
+        voterId: generatedVoterId,
+        fullName: response.data.full_name 
+      } 
+    });
+    
+  } catch (error: any) {
+    console.error('Registration error:', error);
+    
+      
+      // Handle different error responses
+      if (error.response?.data?.message) {
+        const errorMsg = error.response.data.message;
+        if (typeof errorMsg === 'object') {
+          const firstError = Object.values(errorMsg)[0];
+          onToast(Array.isArray(firstError) ? firstError[0] : String(firstError), 'error');
+        } else {
+          onToast(errorMsg, 'error');
+        }
       } else {
-        onToast(data.message || 'Registration failed.', 'error');
+        onToast('Registration failed. Please check your information and try again.', 'error');
       }
-    } catch (error) {
-      onToast('Registration failed. Check server logs.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -335,13 +353,20 @@ export default function Register({ onToast }: RegisterProps) {
             </div>
             <input
               name="confirm_password"
-              type="password"
+              type={showConfirmPassword ? 'text' : 'password'}
               required
               value={formData.confirm_password}
               onChange={handleChange}
-              className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all duration-200"
+              className="block w-full pl-9 pr-10 py-2 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all duration-200"
               placeholder="••••••••"
             />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+            >
+              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
         </div>
 

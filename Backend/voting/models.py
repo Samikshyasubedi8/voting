@@ -1,4 +1,4 @@
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from datetime import datetime
@@ -28,6 +28,12 @@ class Voter(AbstractBaseUser, PermissionsMixin):
     is_staff      = models.BooleanField(default=False)
     has_voted     = models.BooleanField(default=False)
     registered_at = models.DateTimeField(auto_now_add=True)
+
+    date_of_birth = models.DateField(null=True, blank=True)
+    citizenship_no = models.CharField(max_length=50, null=True, blank=True)
+    district = models.CharField(max_length=100, null=True, blank=True)
+    municipality = models.CharField(max_length=100, null=True, blank=True)
+    ward = models.CharField(max_length=10, null=True, blank=True)
 
     groups = models.ManyToManyField(
         'auth.Group',

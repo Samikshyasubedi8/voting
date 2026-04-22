@@ -16,6 +16,8 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
+        // Don't rewrite - keep /api prefix
+        rewrite: (path) => path,
       },
     },
   },
