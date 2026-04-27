@@ -5,8 +5,6 @@ from django.contrib.auth import authenticate
 from .models import Candidate, Voter
 
 
-
-
 class LoginSerializer(serializers.Serializer):
     identifier = serializers.CharField()  # This will be Voter ID
     password = serializers.CharField(write_only=True)
@@ -17,6 +15,13 @@ class LoginSerializer(serializers.Serializer):
 
         # Try to authenticate with voter_id
         user = authenticate(username=identifier, password=password)
+        if user is None:
+            # If not found, try finding by voter_id and then authenticate
+            try:
+                voter = Voter.objects.get(voter_id=identifier)
+                user = authenticate(username=voter.voter_id, password=password)
+            except Voter.DoesNotExist:
+                pass
 
         if user is None:
             raise serializers.ValidationError('Invalid Voter ID or password.')

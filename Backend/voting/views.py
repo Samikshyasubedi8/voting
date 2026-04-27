@@ -1,6 +1,7 @@
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.db import transaction 
+from django.utils import timezone
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,10 +9,14 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.generics import ListAPIView
-from .models import Candidate , Vote
-from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+
+from .models import Candidate , Voter , BlockchainBlock, ElectionStatus
+ #from rest_framework.authentication import SessionAuthentication, BasicAuthentication
 from .custom_sha256 import VotingHasher
 from datetime import datetime
+from .blockchain import get_blockchain
+
+
 
 
 from .serializer import LoginSerializer, VoterSerializer, ReactSerializer, RegisterSerializer , CandidateSerializer
@@ -70,133 +75,185 @@ class CandidateListView(ListAPIView):
         context.update({"request": self.request})
         return context
 
-class BlockchainVoteView(APIView):
+class VoteView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
         voter = request.user
         
-        # Check if already voted
-        if voter.has_voted:
-            return Response(
-                {'error': 'You have already cast your vote'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Check if already voted (by checking blockchain)
+        blockchain = get_blockchain()
+        voter_hash = VotingHasher.hash_voter_id(voter.voter_id)
+        
+        # Check if this voter_hash already exists in blockchain
+        for block in blockchain.chain:
+            if block.index > 0 and block.vote_data.get('voter_hash') == voter_hash:
+                return Response({'error': 'Already voted!'}, status=400)
         
         candidate_id = request.data.get('candidate_id')
-        if not candidate_id:
-            return Response(
-                {'error': 'Candidate ID required'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        candidate = Candidate.objects.get(id=candidate_id)
         
-        try:
-            candidate = Candidate.objects.get(id=candidate_id)
-        except Candidate.DoesNotExist:
-            return Response(
-                {'error': 'Candidate not found'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
+        # Mark voter as voted (in Voter model)
+        voter.has_voted = True
+        voter.save()
         
-        # Create blockchain vote
-        with transaction.atomic():
-            # Create vote with custom SHA-256 hashing
-            vote = Vote.objects.create(
-                voter=voter,
-                candidate=candidate
-            )
-            
-            # Verify the hash
-            vote_timestamp = vote.timestamp.isoformat()
-            is_valid = VotingHasher.verify_vote(
-                voter.voter_id,
-                candidate_id,
-                vote_timestamp,
-                vote.vote_hash
-            )
-            
-            vote.is_verified = is_valid
-            vote.save()
-            
-            # Update candidate votes
-            candidate.votes_count += 1
-            candidate.save()
-            
-            # Mark voter as voted
-            voter.has_voted = True
-            voter.save()
+        # Update candidate vote count (for fast results)
+        candidate.votes_count += 1
+        candidate.save()
+        
+        # Store ONLY in blockchain (no Vote model!)
+        vote_data = {
+            'voter_hash': voter_hash,
+            'candidate_id': candidate.id,
+            'candidate_name': candidate.name,
+            'timestamp': timezone.now().isoformat()
+        }
+        
+        new_block = blockchain.add_vote(vote_data)
         
         return Response({
             'success': True,
-            'message': 'Vote recorded on blockchain',
-            'blockchain_data': {
-                'voter_hash': vote.voter_hash,
-                'vote_hash': vote.vote_hash,
-                'candidate': candidate.name,
-                'candidate_id': candidate.id,
-                'timestamp': vote.timestamp.isoformat(),
-                'verified_on_blockchain': vote.is_verified,
-                'transaction_id': vote.id
-            }
-        }, status=status.HTTP_201_CREATED)
+            'message': 'Vote recorded on blockchain!',
+            'block_index': new_block.index,
+            'block_hash': new_block.hash[:16] + '...'
+        })
+
 
 class VoteStatusView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
         voter = request.user
+        voter_hash = VotingHasher.hash_voter_id(voter.voter_id)
         
-        if voter.has_voted:
-            try:
-                vote = Vote.objects.get(voter=voter)
-                return Response({
-                    'has_voted': True,
-                    'candidate_name': vote.candidate.name,
-                    'candidate_id': vote.candidate.id,
-                    'vote_hash': vote.vote_hash,
-                    'voter_hash': vote.voter_hash,
-                    'timestamp': vote.timestamp,
-                    'verified': vote.is_verified
-                })
-            except Vote.DoesNotExist:
-                return Response({'has_voted': False})
+        # Check blockchain instead of Vote table
+        blockchain = get_blockchain()
+        has_voted = False
+        vote_data = None
+        
+        for block in blockchain.chain:
+            if block.index > 0 and block.vote_data.get('voter_hash') == voter_hash:
+                has_voted = True
+                vote_data = block.vote_data
+                break
+        
+        if has_voted:
+            return Response({
+                'has_voted': True,
+                'candidate_name': vote_data.get('candidate_name'),
+                'candidate_id': vote_data.get('candidate_id'),
+                'timestamp': block.timestamp
+            })
         else:
             return Response({'has_voted': False})
 
-class BlockchainVerificationView(APIView):
+class BlockchainAdminView(APIView):
+    """Admin only - View full blockchain"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """Verify all votes on the blockchain"""
-        votes = Vote.objects.select_related('voter', 'candidate').all()
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
         
-        verification_results = []
-        for vote in votes:
-            # Recalculate hash to verify integrity
-            vote_timestamp = vote.timestamp.isoformat()
-            recalculated_hash = VotingHasher.hash_vote(
-                vote.voter.voter_id,
-                vote.candidate.id,
-                vote_timestamp
-            )
-            
-            is_valid = recalculated_hash == vote.vote_hash
-            
-            verification_results.append({
-                'vote_id': vote.id,
-                'candidate': vote.candidate.name,
-                'timestamp': vote.timestamp,
-                'hash_valid': is_valid,
-                'vote_hash': vote.vote_hash[:16] + '...'
+        blockchain = get_blockchain()
+        
+        blocks = []
+        for block in blockchain.chain:
+            blocks.append({
+                'index': block.index,
+                'timestamp': datetime.fromtimestamp(block.timestamp).isoformat(),
+                'hash': block.hash,
+                'previous_hash': block.previous_hash,
+                'nonce': block.nonce,
+                'vote_data': block.vote_data if block.index > 0 else None
             })
         
-        total_votes = votes.count()
-        valid_votes = sum(1 for v in verification_results if v['hash_valid'])
+        return Response({
+            'total_blocks': len(blockchain.chain),
+            'total_votes': len([b for b in blockchain.chain if b.index > 0]),
+            'chain_valid': blockchain.is_chain_valid(),
+            'blocks': blocks
+        }, status=status.HTTP_200_OK)
+
+class ToggleResultsView(APIView):
+    """Admin only - Turn results ON/OFF"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        # Check if user is admin
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+        
+        action = request.data.get('action')  # 'on' or 'off'
+        
+        status_obj, created = ElectionStatus.objects.get_or_create(id=1)
+        
+        if action == 'on':
+            status_obj.is_result_live = True
+            status_obj.results_published_at = timezone.now()
+            status_obj.published_by = request.user
+            status_obj.save()
+            message = "Results are now LIVE and visible to everyone!"
+        else:
+            status_obj.is_result_live = False
+            status_obj.save()
+            message = "Results are now HIDDEN from public view."
         
         return Response({
-            'total_votes': total_votes,
-            'valid_votes': valid_votes,
-            'tampered_votes': total_votes - valid_votes,
-            'is_blockchain_secure': valid_votes == total_votes,
-            'verification_details': verification_results
+            'success': True,
+            'message': message,
+            'is_result_live': status_obj.is_result_live
+        }, status=status.HTTP_200_OK)
+
+
+class ElectionResultsView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        # Get results from Candidate model (votes_count is updated when voting)
+        candidates = Candidate.objects.all().order_by('-votes_count')
+        total_votes = sum(c.votes_count for c in candidates)
+        
+        results = {}
+        for candidate in candidates:
+            results[candidate.name] = candidate.votes_count
+        
+        # Check election status
+        try:
+            status_obj = ElectionStatus.objects.get(id=1)
+            is_live = status_obj.is_result_live
+        except ElectionStatus.DoesNotExist:
+            is_live = False
+        
+        is_admin = request.user.is_authenticated and request.user.is_staff
+        
+        if not is_live and not is_admin:
+            return Response({
+                'results_available': False,
+                'message': 'Results are not yet available. Please wait for the official announcement.'
+            })
+        
+        return Response({
+            'results_available': True,
+            'is_result_live': is_live,
+            'total_votes_cast': total_votes,
+            'results': results
         })
+
+class AdminResultStatusView(APIView):
+    """Admin can check current result status"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            status_obj = ElectionStatus.objects.get(id=1)
+            return Response({
+                'is_result_live': status_obj.is_result_live,
+                'results_published_at': status_obj.results_published_at,
+                'published_by': status_obj.published_by.voter_id if status_obj.published_by else None
+            })
+        except ElectionStatus.DoesNotExist:
+            return Response({'is_result_live': False, 'results_published_at': None})

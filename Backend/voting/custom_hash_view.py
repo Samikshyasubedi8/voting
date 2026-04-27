@@ -1,12 +1,11 @@
-# Create c:\Users\Sharada\OneDrive\Desktop\OVS-main\Backend\voting\custom_hash_views.py
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from .models import Vote, Candidate
+from .models import BlockchainBlock, Candidate, Voter
 from .custom_sha256 import VotingHasher
 from datetime import datetime
+from .blockchain import get_blockchain
 
 class VoteWithCustomHashView(APIView):
     permission_classes = [IsAuthenticated]
@@ -15,64 +14,67 @@ class VoteWithCustomHashView(APIView):
         voter = request.user
         candidate_id = request.data.get('candidate_id')
         
-        if voter.has_voted:
-            return Response({'error': 'You have already voted'}, status=status.HTTP_400_BAD_REQUEST)
+        # Check if already voted using blockchain
+        voter_hash = VotingHasher.hash_voter_id(voter.voter_id)
+        blockchain = get_blockchain()
+        
+        for block in blockchain.chain:
+            if block.index > 0 and block.vote_data.get('voter_hash') == voter_hash:
+                return Response({'error': 'You have already voted'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             candidate = Candidate.objects.get(id=candidate_id)
             
-            # Create vote with custom SHA-256 hashing
-            vote = Vote.objects.create(
-                voter=voter,
-                candidate=candidate,
-                timestamp=datetime.now()
-            )
+            # Create vote data for blockchain
+            vote_data = {
+                'voter_hash': voter_hash,
+                'candidate_id': candidate.id,
+                'candidate_name': candidate.name,
+                'candidate_party': candidate.party,
+                'timestamp': datetime.now().isoformat()
+            }
             
-            # Verify the hash
-            vote_timestamp = vote.timestamp.isoformat()
-            is_valid = VotingHasher.verify_vote(
-                voter.voter_id,
-                candidate_id,
-                vote_timestamp,
-                vote.vote_hash
-            )
-            vote.is_verified = is_valid
-            vote.save()
+            # Add to blockchain
+            new_block = blockchain.add_vote(vote_data)
             
+            # Update candidate vote count
+            candidate.votes_count += 1
+            candidate.save()
+            
+            # Mark voter as voted
             voter.has_voted = True
             voter.save()
             
             return Response({
                 'message': 'Vote recorded with custom SHA-256 hashing',
-                'voter_hash': vote.voter_hash,
-                'vote_hash': vote.vote_hash,
-                'verified': vote.is_verified
+                'voter_hash': voter_hash,
+                'vote_data': vote_data,
+                'block_index': new_block.index,
+                'block_hash': new_block.hash[:16] + '...',
+                'verified': True
             }, status=status.HTTP_201_CREATED)
         
         except Candidate.DoesNotExist:
             return Response({'error': 'Candidate not found'}, status=status.HTTP_404_NOT_FOUND)
 
+
 class VerifyCustomHashView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
-        vote_hash = request.data.get('vote_hash')
+        block_index = request.data.get('block_index')
         
         try:
-            vote = Vote.objects.get(vote_hash=vote_hash)
-            is_valid = VotingHasher.verify_vote(
-                vote.voter.voter_id,
-                vote.candidate.id,
-                vote.timestamp.isoformat(),
-                vote.vote_hash
-            )
+            block = BlockchainBlock.objects.get(index=block_index)
             
             return Response({
-                'vote_hash': vote.vote_hash,
-                'voter_hash': vote.voter_hash,
-                'candidate': vote.candidate.name,
-                'verified': is_valid
+                'block_index': block.index,
+                'vote_data': block.vote_data,
+                'block_hash': block.hash,
+                'previous_hash': block.previous_hash,
+                'verified': block.verified,
+                'timestamp': block.timestamp
             }, status=status.HTTP_200_OK)
         
-        except Vote.DoesNotExist:
-            return Response({'error': 'Vote not found'}, status=status.HTTP_404_NOT_FOUND)
+        except BlockchainBlock.DoesNotExist:
+            return Response({'error': 'Block not found'}, status=status.HTTP_404_NOT_FOUND)
