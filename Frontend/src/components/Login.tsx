@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from './api';
+import { storeAuthData } from '../utils/authHelpers';
 
 interface LoginProps {
   onToast: (message: string, type: 'success' | 'error') => void;
@@ -20,13 +21,13 @@ export default function Login({ onToast }: LoginProps) {
     setIsLoading(true);
 
     try {
-      const response = await api.post('login/', { identifier, password });
-      
+       const response = await api.post('login/', { 
+        identifier: identifier.trim(),  // Remove any spaces
+        password: password 
+      });
       if (response.data.token) {
-        localStorage.setItem('auth_token', response.data.token);
-        if (response.data.user) {
-          localStorage.setItem('user_data', JSON.stringify(response.data.user));
-        }
+        // Use the helper function to store auth data
+        storeAuthData(response.data.token, response.data.user || {});
         onToast('Welcome back! Login successful.', 'success');
         navigate('/welcome');
       }

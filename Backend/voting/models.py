@@ -1,9 +1,25 @@
+import uuid
+
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from datetime import datetime
 from .custom_sha256 import VotingHasher
 from django.utils import timezone
 
+
+"""class VoterManager(BaseUserManager):
+    def create_user(self, voter_id, password=None, **extra_fields):
+        if not voter_id:
+            raise ValueError('Voter ID is required')
+        user = self.model(voter_id=voter_id, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, voter_id, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        return self.create_user(voter_id, password, **extra_fields)  """
 
 class VoterManager(BaseUserManager):
     def create_user(self, voter_id, password=None, **extra_fields):
@@ -18,6 +34,10 @@ class VoterManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(voter_id, password, **extra_fields)
+    
+  # It's crucial for authentication
+    def get_by_natural_key(self, username):
+        return self.get(voter_id=username)
 
 
 class Voter(AbstractBaseUser, PermissionsMixin):
@@ -30,7 +50,7 @@ class Voter(AbstractBaseUser, PermissionsMixin):
     registered_at = models.DateTimeField(auto_now_add=True)
 
     date_of_birth = models.DateField(null=True, blank=True)
-    citizenship_no = models.CharField(max_length=50, null=True, blank=True)
+    citizenship_no = models.CharField(max_length=20, null=True, blank=True)
     district = models.CharField(max_length=100, null=True, blank=True)
     municipality = models.CharField(max_length=100, null=True, blank=True)
     ward = models.CharField(max_length=10, null=True, blank=True)
@@ -106,20 +126,37 @@ class VoterManager(BaseUserManager):
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(voter_id, password, **extra_fields)
     
-    # ADD THIS METHOD - It's crucial for authentication
+  # It's crucial for authentication
     def get_by_natural_key(self, username):
         return self.get(voter_id=username)
 
-# Add to your models.py
+
+
+
 
 class ElectionStatus(models.Model):
     """Controls when results are visible to the public"""
     is_result_live = models.BooleanField(default=False)
     results_published_at = models.DateTimeField(null=True, blank=True)
     published_by = models.ForeignKey(Voter, on_delete=models.SET_NULL, null=True, blank=True)
+    total_votes_cast = models.IntegerField(default=0)
+    last_calculated = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         verbose_name_plural = "Election Status"
     
     def __str__(self):
         return f"Results Live: {self.is_result_live}"
+
+# models.py - Add this model
+
+class VoteReceipt(models.Model):
+    """Stores vote receipt for voters to verify their vote (not visible to admin)"""
+    voter = models.OneToOneField(Voter, on_delete=models.CASCADE, related_name='receipt')
+    receipt_id = models.UUIDField(unique=True, default=uuid.uuid4)
+    block_index = models.IntegerField()
+    candidate_name = models.CharField(max_length=150)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Receipt for {self.voter.voter_id[:10]}..."

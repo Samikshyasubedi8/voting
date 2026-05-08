@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
 import axios from 'axios';
-
 
 // Component Imports
 import Login from './components/Login';
@@ -15,6 +14,13 @@ import VotingWelcome from './components/VotingWelcome';
 import Homepage from './components/Homepage';
 import CandidateDetails from './components/CandidateDetails';
 import ResultsPage from './components/ResultsPage';
+import VoteThankYou from './components/VoteThankYou';
+import AdminResultsControl from './components/AdminResultscontrol';
+import ProtectedRoute from './components/ProtectedRoute';
+
+
+// Utility Imports
+import { isAuthenticated } from './utils/authHelpers';
 
 /**
  * 1. AXIOS CONFIGURATION
@@ -29,13 +35,12 @@ export const api = axios.create({
 
 export default function App() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   // 2. CHECK AUTH ON LOAD
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
     if (token) {
-      setIsAuthenticated(true);
+      // Token exists, user is authenticated
       // Optional: Add a call to api.get('verify-token/') here to check if token is expired
     }
   }, []);
@@ -50,13 +55,14 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Homepage />} />
           <Route path="/candidate-details" element={<CandidateDetails />} />
+          <Route path="/admin/results" element={<AdminResultsControl />} />
           <Route path="/results" element={<ResultsPage />} />
 
           {/* LOGIN ROUTE */}
           <Route 
             path="/login" 
             element={
-              isAuthenticated ? (
+              isAuthenticated() ? (
                 <Navigate to="/welcome" replace />
               ) : (
                 <AuthLayout>
@@ -86,16 +92,49 @@ export default function App() {
             } 
           />
 
-          {/* WELCOME PAGE (Protected-ish) */}
-          <Route path="/welcome" element={<VotingWelcome />} />
-          <Route path="/voting" element={<VotingPage />} />
+          {/* PROTECTED ROUTES */}
+          {/* WELCOME PAGE (Protected) */}
+          <Route 
+            path="/welcome" 
+            element={
+              <ProtectedRoute>
+                <VotingWelcome />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* VOTING PAGE (Protected) */}
+          <Route 
+            path="/voting" 
+            element={
+              <ProtectedRoute>
+                <VotingPage />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* THANK YOU PAGE (Protected) */}
+          <Route 
+            path="/vote-thankyou" 
+            element={
+              <ProtectedRoute>
+                <VoteThankYou />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* ADMIN PAGE (Protected) */}
+          <Route 
+            path="/admin/results-control" 
+            element={
+              <ProtectedRoute>
+                <AdminResultsControl />
+              </ProtectedRoute>
+            } 
+          />
 
           {/* REDIRECTS */}
-          <Route 
-            path="/" 
-            element={<Navigate to="/login" replace />} 
-          />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
         {/* TOAST NOTIFICATIONS */}

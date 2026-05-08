@@ -1,7 +1,5 @@
 from django.contrib import admin
-
-
-from .models import Candidate ,Voter, BlockchainBlock, Blockchain, ElectionStatus
+from .models import Candidate, Voter, BlockchainBlock, Blockchain, ElectionStatus
 
 @admin.register(Candidate)
 class CandidateAdmin(admin.ModelAdmin):
@@ -24,6 +22,19 @@ class BlockchainBlockAdmin(admin.ModelAdmin):
     readonly_fields = ['index', 'hash', 'previous_hash', 'nonce', 'vote_data', 'timestamp']
     search_fields = ['hash']
     
+    # Prevent adding, deleting, or modifying blocks (READ ONLY)
+    def has_add_permission(self, request):
+        """Prevent adding new blocks manually - only blockchain.add_vote() can create blocks"""
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """Prevent deleting blocks - blockchain must be immutable"""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Prevent modifying existing blocks - blockchain is append-only"""
+        return False
+    
     def display_vote(self, obj):
         if obj.index == 0:
             return "Genesis Block"
@@ -34,10 +45,18 @@ class BlockchainBlockAdmin(admin.ModelAdmin):
 class BlockchainAdmin(admin.ModelAdmin):
     list_display = ['name', 'created_at']
     readonly_fields = ['name', 'created_at']
+    
+    def has_add_permission(self, request):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        return False
 
 @admin.register(ElectionStatus)
 class ElectionStatusAdmin(admin.ModelAdmin):
     list_display = ['is_result_live', 'results_published_at', 'published_by']
     readonly_fields = ['results_published_at']
-
 

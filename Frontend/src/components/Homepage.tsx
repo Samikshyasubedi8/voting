@@ -1,25 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { 
   Users, 
-  Vote, 
   BarChart3, 
   ShieldCheck, 
-  ChevronRight, 
-  ArrowRight,
+  ChevronRight,
   Menu,
   X,
   Facebook,
-  Twitter,
   Instagram,
-  Linkedin,
   CheckCircle2,
   Mail,
   Phone,
   MapPin
 } from 'lucide-react';
+import { isAuthenticated } from '../utils/authHelpers';
 
 const SLIDES = [
   {
@@ -86,7 +83,16 @@ export default function LandingPage() {
               {[
                 { label: 'Home', action: () => navigate('/') },
                 { label: 'Candidates', action: () => navigate('/candidate-details') },
-                { label: 'Vote', action: () => navigate('/login') },
+                { 
+                  label: 'Vote', 
+                  action: () => {
+                    if (isAuthenticated()) {
+                      navigate('/welcome');
+                    } else {
+                      navigate('/login');
+                    }
+                  }
+                },
                 { label: 'Results', action: () => navigate('/results') },
                 { label: 'Contact', action: () => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' }) }
               ].map((item) => (
@@ -130,7 +136,17 @@ export default function LandingPage() {
                 {[
                   { label: 'Home', action: () => { navigate('/'); setIsMenuOpen(false); } },
                   { label: 'Candidates', action: () => { navigate('/candidate-details'); setIsMenuOpen(false); } },
-                  { label: 'Vote', action: () => { navigate('/login'); setIsMenuOpen(false); } },
+                  { 
+                    label: 'Vote', 
+                    action: () => { 
+                      if (isAuthenticated()) {
+                        navigate('/welcome');
+                      } else {
+                        navigate('/login');
+                      }
+                      setIsMenuOpen(false); 
+                    } 
+                  },
                   { label: 'Results', action: () => { navigate('/results'); setIsMenuOpen(false); } },
                   { label: 'Contact', action: () => { document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' }); setIsMenuOpen(false); } }
                 ].map((item) => (
@@ -178,13 +194,24 @@ export default function LandingPage() {
               className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto pt-10"
             >
               {[
-                { label: 'Candidate Details', icon: Users, color: 'red', path: '/candidate-details' },
-                { label: 'Vote Now', icon: CheckCircle2, color: 'blue', path: '/login' },
-                { label: 'View Results', icon: BarChart3, color: 'red', path: '/results' }
+                { label: 'Candidate Details', icon: Users, color: 'red', action: () => navigate('/candidate-details') },
+                { 
+                  label: 'Vote Now', 
+                  icon: CheckCircle2, 
+                  color: 'blue', 
+                  action: () => {
+                    if (isAuthenticated()) {
+                      navigate('/welcome');
+                    } else {
+                      navigate('/login');
+                    }
+                  }
+                },
+                { label: 'View Results', icon: BarChart3, color: 'red', action: () => navigate('/results') }
               ].map((btn, idx) => (
                 <button
                   key={idx}
-                  onClick={() => navigate(btn.path)}
+                  onClick={btn.action}
                   className="group relative bg-white/80 backdrop-blur-sm p-8 rounded-[2rem] border border-red-50 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-red-100 transition-all duration-300 hover:-translate-y-2 flex flex-col items-center text-center gap-4"
                 >
                   <div className={`w-16 h-16 ${btn.color === 'red' ? 'bg-red-50' : 'bg-blue-50'} rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
@@ -230,14 +257,6 @@ export default function LandingPage() {
                     >
                       {SLIDES[currentSlide].title}
                     </motion.h3>
-                    <motion.p 
-                      initial={{ y: 20, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ delay: 0.5 }}
-                      className="text-xl text-slate-200"
-                    >
-                      {SLIDES[currentSlide].subtitle}
-                    </motion.p>
                   </div>
                 </div>
               </motion.div>

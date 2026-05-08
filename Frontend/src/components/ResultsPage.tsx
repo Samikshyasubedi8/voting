@@ -1,39 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../App';
-import { BarChart3, ArrowLeft, RefreshCw } from 'lucide-react';
+import api from './api';
 
-interface ElectionStats {
-  total_votes_cast: number;
-  pending_votes: number;
-  total_blocks: number;
-  chain_valid: boolean;
-  results: Record<string, number>;
+interface CandidateResult {
+  name: string;
+  party: string;
+  votes: number;
+  image: string | null;
 }
 
 const ResultsPage = () => {
   const navigate = useNavigate();
-  const [results, setResults] = useState<Record<string, number> | null>(null);
-  const [stats, setStats] = useState<ElectionStats | null>(null);
+  const [results, setResults] = useState<CandidateResult[]>([]);
+  const [totalVotes, setTotalVotes] = useState(0);
+  const [isLive, setIsLive] = useState(false);
+  const [winner, setWinner] = useState<CandidateResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     fetchResults();
-    const interval = setInterval(fetchResults, 5000);
+    const interval = setInterval(fetchResults, 10000);
     return () => clearInterval(interval);
   }, []);
 
   const fetchResults = async () => {
     try {
-      const response = await api.get('election-results/');
-      if (response.data.status) {
-        setStats(response.data.status);
-      }
-      if (response.data.results) {
+      const response = await api.get('results/');
+      
+      if (!response.data.results_available) {
+        setMessage(response.data.message);
+        setIsLive(false);
+        setResults([]);
+      } else {
         setResults(response.data.results);
+        setTotalVotes(response.data.total_votes_cast);
+        setIsLive(response.data.is_result_live);
+        setWinner(response.data.winner);
+        setMessage('');
       }
-      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error fetching results:', error);
     } finally {
@@ -43,108 +48,104 @@ const ResultsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900 mx-auto mb-4"></div>
-          <p className="text-blue-900 font-semibold">Loading results...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading results...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLive && message) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
+          <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">Results Not Available Yet</h2>
+          <p className="text-gray-600 mb-6">{message}</p>
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Back to Home
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <nav className="bg-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-blue-900 hover:text-red-600 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Back to Home
-          </button>
-          <h1 className="text-3xl font-bold text-blue-900">Election Results</h1>
-          <button
-            onClick={fetchResults}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
-        </div>
-      </nav>
-
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        {/* Stats Cards */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-            {[
-              { label: 'Total Votes', value: stats.total_votes_cast, color: 'bg-green-50', textColor: 'text-green-600' },
-              { label: 'Pending Votes', value: stats.pending_votes, color: 'bg-blue-50', textColor: 'text-blue-600' },
-              { label: 'Blocks Mined', value: stats.total_blocks, color: 'bg-orange-50', textColor: 'text-orange-600' },
-              { label: 'Chain Status', value: stats.chain_valid ? '✓ Valid' : '✗ Invalid', color: stats.chain_valid ? 'bg-green-50' : 'bg-red-50', textColor: stats.chain_valid ? 'text-green-600' : 'text-red-600' }
-            ].map((stat, idx) => (
-              <div key={idx} className={`${stat.color} rounded-xl p-6 border-2 border-gray-200`}>
-                <p className="text-gray-600 font-semibold mb-2">{stat.label}</p>
-                <p className={`text-3xl font-bold ${stat.textColor}`}>{stat.value}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Results Section */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="flex items-center gap-3 mb-8">
-            <BarChart3 className="w-8 h-8 text-blue-900" />
-            <h2 className="text-3xl font-bold text-blue-900">Vote Count by Candidate</h2>
-          </div>
-
-          {results && Object.keys(results).length > 0 ? (
-            <div className="space-y-6">
-              {Object.entries(results)
-                .sort((a, b) => (b[1] as number) - (a[1] as number))
-                .map(([candidate, votes], idx) => {
-                  const maxVotes = Math.max(...Object.values(results as Record<string, number>));
-                  const percentage = ((votes as number) / maxVotes) * 100;
-
-                  return (
-                    <div key={candidate} className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl font-bold text-gray-400">#{idx + 1}</span>
-                          <span className="text-xl font-bold text-gray-800">{candidate}</span>
-                        </div>
-                        <span className="text-2xl font-bold text-blue-900">{votes} votes</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                        <div
-                          className="bg-gradient-to-r from-blue-500 to-red-500 h-full transition-all duration-500"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                      <div className="text-right text-sm text-gray-600">
-                        {percentage.toFixed(1)}%
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-600 text-lg">No votes recorded yet</p>
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Election Results</h1>
+          {isLive && (
+            <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-full">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              OFFICIAL RESULTS - Published
             </div>
           )}
         </div>
 
-        {/* Footer Note */}
-        <div className="mt-8 bg-blue-50 border-2 border-blue-200 rounded-xl p-6 text-center">
-          <p className="text-blue-900 font-semibold">
-            Results are updated in real-time from the blockchain. 
-          </p>
-          <p className="text-sm text-blue-700 mt-2">
-            Last updated: {lastUpdated.toLocaleTimeString()}
-          </p>
+        {winner && (
+          <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-6 mb-8 text-center border-2 border-yellow-300">
+            <div className="text-4xl mb-2">🏆</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">Winner</h2>
+            <p className="text-3xl font-bold text-yellow-700">{winner.name}</p>
+            <p className="text-gray-600">{winner.party}</p>
+            <p className="text-lg font-semibold mt-2">{winner.votes} votes</p>
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          <div className="bg-gray-50 px-6 py-4 border-b">
+            <h2 className="text-xl font-semibold text-gray-800">Vote Count by Candidate</h2>
+            <p className="text-sm text-gray-500">Total votes cast: {totalVotes}</p>
+          </div>
+
+          <div className="p-6 space-y-6">
+            {results.map((candidate, idx) => {
+              const percentage = totalVotes > 0 ? (candidate.votes / totalVotes) * 100 : 0;
+              const isWinner = idx === 0;
+
+              return (
+                <div key={candidate.name} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className={`font-semibold ${isWinner ? 'text-yellow-700' : 'text-gray-800'}`}>
+                        {candidate.name}
+                      </span>
+                      <span className="text-gray-500 text-sm ml-2">({candidate.party})</span>
+                    </div>
+                    <span className={`font-bold ${isWinner ? 'text-yellow-700' : 'text-blue-600'}`}>
+                      {candidate.votes} votes
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`h-3 rounded-full transition-all duration-500 ${isWinner ? 'bg-gradient-to-r from-yellow-500 to-amber-500' : 'bg-blue-600'}`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                  <div className="text-right text-sm text-gray-500">{percentage.toFixed(1)}%</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="text-center mt-8">
+          <button
+            onClick={() => navigate('/')}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            ← Back to Home
+          </button>
         </div>
       </div>
     </div>
